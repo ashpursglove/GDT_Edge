@@ -126,6 +126,12 @@ def sync_sensors(db: Session = Depends(get_db)) -> dict:
         raise HTTPException(exc.status_code or 502, str(exc)) from exc
 
 
+@app.get("/api/sensors")
+def api_local_sensors(db: Session = Depends(get_db)) -> dict:
+    """Locally cached sensor arrays (synced from console)."""
+    return {"sensors": load_sensors(db)}
+
+
 def _effective_site_id(db: Session, site_id: int | None) -> int | None:
     if site_id is not None:
         return site_id

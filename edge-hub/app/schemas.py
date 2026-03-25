@@ -33,7 +33,7 @@ class LocalReactorOut(BaseModel):
 
 
 class DeviceCreate(BaseModel):
-    kind: str = Field(..., description="ph_temp | spectral | custom")
+    kind: str = Field(..., description="Sensor array code from console DB (e.g. ph-temp, spectral-as7341)")
     name: str = ""
     slave_id: int = Field(..., ge=1, le=247)
     custom_config_json: str | None = None
