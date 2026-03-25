@@ -210,6 +210,7 @@ class HubRuntime:
         sensor_by_code: dict[str, dict[str, Any]] = {
             s.get("code"): s for s in sensors if isinstance(s, dict) and isinstance(s.get("code"), str)
         }
+        per_device_payloads: list[dict[str, Any]] = []
         for dev in devices:
             try:
                 sensor = sensor_by_code.get(dev.kind)
@@ -221,6 +222,16 @@ class HubRuntime:
                 cfg = {"registers": modbus.get("registers", [])} if isinstance(modbus, dict) else {"registers": []}
                 rdr = CustomMapReader(ser, dev.slave_id, json.dumps(cfg), baudrate=baud, timeout=timeout)
                 vals = rdr.read_values()
+                # Upload raw decoded values keyed by sensor code so the console can store/graph any sensor.
+                if reactor.server_reactor_id and isinstance(vals, dict) and vals:
+                    per_device_payloads.append(
+                        {
+                            "reactor_id": reactor.server_reactor_id,
+                            "reading_at": now.isoformat(),
+                            "sensor_code": dev.kind,
+                            "values": vals,
+                        }
+                    )
                 if sensor.get("kind") == "ph_temp":
                     if "temperature_c" in vals and vals["temperature_c"] is not None:
                         temp_c = float(vals["temperature_c"])
@@ -288,6 +299,26 @@ class HubRuntime:
                     db.rollback()
                     raise
 
+        # Also queue per-device payloads (sensor_code + values) for generic storage/graphing on the console.
+        for p in per_device_payloads:
+            try:
+                payload_json = json.dumps(p, allow_nan=False)
+            except ValueError:
+                continue
+            db.add(
+                ReadingOutbox(
+                    reactor_id=reactor.id,
+                    reading_at=now,
+                    payload_json=payload_json,
+                )
+            )
+        if per_device_payloads:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                raise
+
         return snap
 
     def _sync_loop(self) -> None:
@@ -333,11 +364,26 @@ class HubRuntime:
                                     row.last_error = None
                                 db.commit()
                             except RemoteAPIError as exc:
-                                for row in posted_rows:
-                                    row.last_error = str(exc)[:2000]
-                                    row.attempts = row.attempts + 1
-                                db.commit()
-                                self._last_error = str(exc)
+                                msg = str(exc)
+                                # If the console says a reactor id doesn't exist, these queued rows will never succeed.
+                                # Drop them from the retry loop (mark as sent) so new valid readings can flow.
+                                if "Reactor not found:" in msg:
+                                    now = datetime.now(timezone.utc)
+                                    for row in posted_rows:
+                                        row.sent_at = now
+                                        row.last_error = msg[:2000]
+                                        row.attempts = row.attempts + 1
+                                    db.commit()
+                                    self._last_error = (
+                                        f"{msg} — resync reactors from console (Sites & reactors → select site) "
+                                        "so local reactors point at valid console reactor ids."
+                                    )
+                                else:
+                                    for row in posted_rows:
+                                        row.last_error = msg[:2000]
+                                        row.attempts = row.attempts + 1
+                                    db.commit()
+                                    self._last_error = msg
             except Exception as exc:  # noqa: BLE001
                 logger.exception("sync loop")
                 self._last_error = str(exc)
