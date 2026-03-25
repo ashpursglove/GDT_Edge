@@ -292,9 +292,7 @@ async function refreshDevicePanel(wrap, reactorId) {
   await loadLocalSensors();
   panel.innerHTML = `
     <h4 class="subheading" style="margin:0.5rem 0">Devices</h4>
-    <p class="lead muted" style="margin:0 0 0.75rem">
-      Devices must match Sensor Arrays from the console DB. Sync sensors if you don't see them.
-    </p>
+    <p class="lead muted" style="margin:0 0 0.75rem">Add configured device</p>
     <table>
       <thead><tr><th>Kind</th><th>Name</th><th>Slave</th><th></th></tr></thead>
       <tbody class="dev-rows"></tbody>
@@ -302,7 +300,6 @@ async function refreshDevicePanel(wrap, reactorId) {
     <div class="toolbar" style="margin-top:0.75rem">
       <button type="button" class="btn nd-sync">Sync sensors</button>
       <select class="nd-kind"></select>
-      <input class="nd-name" type="text" placeholder="name" style="max-width:160px" />
       <input class="nd-slave" type="number" min="1" max="247" value="1" style="max-width:100px" />
       <button type="button" class="btn primary nd-add">Add device</button>
     </div>
@@ -365,7 +362,8 @@ async function refreshDevicePanel(wrap, reactorId) {
       showErr(msg, "Select a sensor first (or sync sensors).");
       return;
     }
-    const name = panel.querySelector(".nd-name").value.trim() || kind;
+    const sensor = sensorsCache.find((s) => s.code === kind);
+    const name = sensor?.name || sensor?.code || kind;
     const slave_id = Number(panel.querySelector(".nd-slave").value) || 1;
     await api(`/api/local-reactors/${reactorId}/devices`, {
       method: "POST",
