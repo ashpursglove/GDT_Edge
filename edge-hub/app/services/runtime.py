@@ -265,13 +265,15 @@ class HubRuntime:
             error=err_msg,
         )
 
-        has_telemetry = (
+        # Legacy combined payload (ph/temp/spectral only). Generic sensors are uploaded as per-device packets
+        # with `sensor_code` + `values` (see `per_device_payloads` above).
+        has_legacy_telemetry = (
             temp_c is not None
             or ph is not None
             or spectral is not None
-            or bool(custom)
+            or spectral_status is not None
         )
-        if reactor.server_reactor_id and has_telemetry:
+        if reactor.server_reactor_id and has_legacy_telemetry:
             payload = {
                 "reactor_id": reactor.server_reactor_id,
                 "reading_at": now.isoformat(),
