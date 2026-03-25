@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db, init_db
-from app.models import Device, LocalReactor
+from app.models import Device, LocalReactor, ReadingOutbox
 from app.remote_client import RemoteAPIError, fetch_reactors, fetch_sites, fetch_sensors
 from app.schemas import (
     DeviceCreate,
@@ -336,6 +336,40 @@ def api_live() -> dict:
         "snapshots": [s.model_dump() for s in runtime.live_snapshots()],
         "status": runtime.status_dict(),
     }
+
+
+@app.get("/api/outbox")
+def api_outbox(
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = (
+        db.execute(
+            select(ReadingOutbox)
+            .where(ReadingOutbox.sent_at.is_(None))
+            .order_by(ReadingOutbox.id)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        payload = r.payload_json or ""
+        # Avoid flooding the UI; keep a preview only.
+        preview = payload if len(payload) <= 800 else payload[:800] + "…"
+        items.append(
+            {
+                "id": r.id,
+                "reactor_id": r.reactor_id,
+                "reading_at": r.reading_at.isoformat() if r.reading_at else None,
+                "attempts": r.attempts,
+                "last_error": r.last_error,
+                "payload_preview": preview,
+                "payload_len": len(payload),
+            }
+        )
+    return {"count": len(items), "rows": items}
 
 
 @app.get("/")

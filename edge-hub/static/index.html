@@ -136,12 +136,35 @@
                   <th>pH</th>
                   <th>Temp °C</th>
                   <th>Spectral</th>
+                  <th>Custom</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody id="liveBody"></tbody>
             </table>
             <p id="liveError" class="err" hidden></p>
+          </div>
+
+          <h2>Outbox (unsent packets)</h2>
+          <div class="card">
+            <div class="toolbar">
+              <button type="button" class="btn" id="btnRefreshOutbox">Refresh</button>
+              <span class="pill pill-muted" id="outboxCount">—</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Local reactor</th>
+                  <th>Reading at (UTC)</th>
+                  <th>Attempts</th>
+                  <th>Last error</th>
+                  <th>Payload</th>
+                </tr>
+              </thead>
+              <tbody id="outboxBody"></tbody>
+            </table>
+            <p id="outboxError" class="err" hidden></p>
           </div>
         </section>
       </main>

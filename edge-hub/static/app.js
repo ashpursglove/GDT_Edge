@@ -387,12 +387,14 @@ async function pollLive() {
     for (const s of data.snapshots || []) {
       const tr = document.createElement("tr");
       const spec = s.spectral ? s.spectral.join(", ") : "—";
+      const custom = s.custom ? JSON.stringify(s.custom) : "—";
       tr.innerHTML = `
         <td>${escapeHtml(s.label)}</td>
         <td>${s.server_reactor_id ?? "—"}</td>
         <td>${s.ph != null ? s.ph.toFixed(2) : "—"}</td>
         <td>${s.temperature_c != null ? s.temperature_c.toFixed(1) : "—"}</td>
         <td class="mono">${escapeHtml(spec)}</td>
+        <td class="mono">${escapeHtml(custom)}</td>
         <td>${s.error ? escapeHtml(s.error) : "ok"}</td>
       `;
       body.appendChild(tr);
@@ -400,6 +402,33 @@ async function pollLive() {
     showErr($("liveError"), "");
   } catch (e) {
     showErr($("liveError"), String(e.message || e));
+  }
+}
+
+async function refreshOutbox() {
+  showErr($("outboxError"), "");
+  try {
+    const data = await api("/api/outbox?limit=100");
+    $("outboxCount").textContent = `${data.count ?? 0} pending`;
+    const body = $("outboxBody");
+    body.innerHTML = "";
+    for (const r of data.rows || []) {
+      const tr = document.createElement("tr");
+      const err = r.last_error ? String(r.last_error) : "";
+      const at = r.reading_at ? String(r.reading_at) : "—";
+      const preview = r.payload_preview ? String(r.payload_preview) : "";
+      tr.innerHTML = `
+        <td class="mono">${r.id}</td>
+        <td class="mono">${r.reactor_id}</td>
+        <td class="mono">${escapeHtml(at)}</td>
+        <td class="mono">${r.attempts ?? 0}</td>
+        <td>${escapeHtml(err)}</td>
+        <td class="mono">${escapeHtml(preview)}</td>
+      `;
+      body.appendChild(tr);
+    }
+  } catch (e) {
+    showErr($("outboxError"), String(e.message || e));
   }
 }
 
@@ -433,6 +462,8 @@ async function init() {
   $("btnStop").addEventListener("click", async () => {
     await api("/api/control/stop", { method: "POST", body: "{}" });
   });
+
+  $("btnRefreshOutbox").addEventListener("click", () => refreshOutbox());
 
   $("btnLoadSites").addEventListener("click", async () => {
     try {
@@ -479,7 +510,9 @@ async function init() {
   }
 
   setInterval(pollLive, 1500);
+  setInterval(refreshOutbox, 3000);
   pollLive();
+  refreshOutbox();
 }
 
 init();
