@@ -1,0 +1,25 @@
+# Use a pre-built image from a registry (no source/build on the Pi).
+# Set GDT_EDGE_IMAGE in .env, e.g. ghcr.io/youruser/gdt-edge-hub:latest
+#
+# docker compose -f docker-compose.dist.yml pull
+# docker compose -f docker-compose.dist.yml up -d
+#
+# Docker Desktop on Windows: there is no /dev/ttyUSB0 — use docker-compose.windows.yml instead.
+
+services:
+  edge-hub:
+    image: ${GDT_EDGE_IMAGE}
+    container_name: gdt-edge-hub
+    restart: unless-stopped
+    ports:
+      - "${GDT_PORT:-8756}:8756"
+    environment:
+      GDT_HOST: "0.0.0.0"
+      GDT_HUB_DATA: "/data"
+      GDT_CONSOLE_API_BASE_URL: ${GDT_CONSOLE_API_BASE_URL:-}
+      GDT_CONSOLE_API_KEY: ${GDT_CONSOLE_API_KEY:-}
+      GDT_SERIAL_DEVICE: ${GDT_SERIAL_DEVICE:-/dev/ttyUSB0}
+    volumes:
+      - ./data:/data
+    devices:
+      - "${SERIAL_DEVICE:-/dev/ttyUSB0}:${SERIAL_DEVICE:-/dev/ttyUSB0}"
