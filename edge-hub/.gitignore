@@ -1,0 +1,7 @@
+data/hub.db
+data/hub.db-journal
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
