@@ -1,0 +1,20 @@
+# Docker Desktop on Windows — no /dev/ttyUSB0. Use this file to run the hub for UI/API testing.
+# Modbus serial from inside this container is not supported on Windows; use `run.cmd` + Python on the host for RS485.
+#
+# docker compose -f docker-compose.windows.yml up -d
+
+services:
+  edge-hub:
+    image: ${GDT_EDGE_IMAGE}
+    container_name: gdt-edge-hub
+    restart: unless-stopped
+    ports:
+      - "${GDT_PORT:-8756}:8756"
+    environment:
+      GDT_HOST: "0.0.0.0"
+      GDT_HUB_DATA: "/data"
+      GDT_CONSOLE_API_BASE_URL: ${GDT_CONSOLE_API_BASE_URL:-}
+      GDT_CONSOLE_API_KEY: ${GDT_CONSOLE_API_KEY:-}
+      GDT_SERIAL_DEVICE: ""
+    volumes:
+      - ./data:/data
