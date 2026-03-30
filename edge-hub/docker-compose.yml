@@ -1,0 +1,30 @@
+# GDT Edge Hub — Linux / Raspberry Pi (serial over USB-RS485)
+#
+# 1) Copy .env.example to .env and fill values (or run scripts/setup.sh).
+# 2) Set SERIAL_DEVICE to your adapter (ls /dev/ttyUSB* /dev/ttyAMA* /dev/serial/by-id/*).
+# 3) docker compose up -d
+# 4) Open http://<pi-ip>:8756
+#
+# Windows: USB serial in Docker is awkward; use run.cmd + Python on the host instead.
+
+services:
+  edge-hub:
+    build: .
+    image: gdt-edge-hub:local
+    container_name: gdt-edge-hub
+    restart: unless-stopped
+    ports:
+      - "${GDT_PORT:-8756}:8756"
+    environment:
+      GDT_HOST: "0.0.0.0"
+      GDT_HUB_DATA: "/data"
+      GDT_CONSOLE_API_BASE_URL: ${GDT_CONSOLE_API_BASE_URL:-}
+      GDT_CONSOLE_API_KEY: ${GDT_CONSOLE_API_KEY:-}
+      GDT_SERIAL_DEVICE: ${GDT_SERIAL_DEVICE:-/dev/ttyUSB0}
+    volumes:
+      - ./data:/data
+    # Pass through the RS485 adapter; path must match GDT_SERIAL_DEVICE inside the container.
+    devices:
+      - "${SERIAL_DEVICE:-/dev/ttyUSB0}:${SERIAL_DEVICE:-/dev/ttyUSB0}"
+    # If the adapter is not visible, try uncommenting:
+    # privileged: true
