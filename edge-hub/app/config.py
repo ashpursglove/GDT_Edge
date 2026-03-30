@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     port: int = 8756
     database_url: str = ""  # set from data_dir if empty
 
+    #: Pre-seed hub UI / SQLite when those fields are still empty (Docker-friendly).
+    console_api_base_url: str = ""
+    console_api_key: str = ""
+    #: Default serial device path (e.g. /dev/ttyUSB0 on Linux/Pi, COM3 on Windows).
+    serial_device: str = ""
+
     @property
     def data_dir(self) -> Path:
         d = _default_data_dir()

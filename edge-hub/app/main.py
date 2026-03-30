@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
-from app.database import get_db, init_db
+from app.database import SessionLocal, get_db, init_db
 from app.models import Device, LocalReactor, ReadingOutbox
 from app.remote_client import RemoteAPIError, fetch_reactors, fetch_sites, fetch_sensors
 from app.schemas import (
@@ -23,6 +23,7 @@ from app.schemas import (
     LocalReactorOut,
     LocalReactorPatch,
 )
+from app.bootstrap import apply_env_preseed_if_needed
 from app.services.runtime import runtime
 from app.services.settings_store import load_hub_settings, merge_hub_settings, save_hub_settings
 from app.services.sensors_store import load_sensors, save_sensors
@@ -36,6 +37,11 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    db = SessionLocal()
+    try:
+        apply_env_preseed_if_needed(db)
+    finally:
+        db.close()
     yield
     runtime.stop()
 
