@@ -37,7 +37,7 @@ Replace `YOUR_DOCKERHUB_USERNAME` with your Docker Hub username.
 
 ### On the site machine
 
-They need the small files from this repo: `docker-compose.dist.yml`, `.env` (from `.env.example`), and optionally `scripts/friend-setup.sh`. Step-by-step for Pi: **[Raspberry_Pi_Setup.md](./Raspberry_Pi_Setup.md)**.
+They need the small files from this repo: `docker-compose.dist.yml`, and optionally `scripts/friend-setup.sh`; they create `.env` on the machine. Step-by-step for Pi: **[Raspberry_Pi_Setup.md](./Raspberry_Pi_Setup.md)**.
 
 In `.env` set:
 

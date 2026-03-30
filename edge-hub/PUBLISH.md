@@ -3,7 +3,7 @@
 The field installer can **pull a ready-made image** and never run `git clone` or `docker build`. You build once (for **amd64** and **arm64** so it runs on a PC and on a Raspberry Pi), push to a registry, then send them:
 
 - the **image name** (e.g. `ghcr.io/yourname/gdt-edge-hub:latest`),
-- a tiny bundle: **`docker-compose.dist.yml`**, **`.env.example`**, **`scripts/friend-setup.sh`** (from this repo),
+- a tiny bundle: **`docker-compose.dist.yml`** and optionally **`scripts/friend-setup.sh`** (from this repo); the installer creates **`.env`** on the machine (see **Raspberry_Pi_Setup.md**),
 - plus the **Console URL** and **ingest API key** (or they type them in the script).
 
 Raspberry Pi site steps: **[Raspberry_Pi_Setup.md](./Raspberry_Pi_Setup.md)**.
@@ -53,6 +53,23 @@ docker buildx build \
 
 Replace `YOUR_GITHUB_USER` with your GitHub user or org (lowercase).
 
+### Same build, Docker Hub (`docker.io`)
+
+Log in to Docker Hub (`docker login`), then from **`edge-hub`**:
+
+```bash
+docker buildx create --name gdthub --use 2>/dev/null || docker buildx use gdthub
+
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -f Dockerfile \
+  -t dockerash1987/gdt-edge-hub:latest \
+  --push \
+  .
+```
+
+Replace `dockerash1987/gdt-edge-hub` with your Hub user/repo if different. This **replaces** the tag on the registry with a **multi-arch** manifest so `docker pull` works on both PCs and 64-bit Raspberry Pis.
+
 **32-bit Raspberry Pi OS (armv7)** is less common now. If you must support it, add `linux/arm/v7` to `--platform` (builds take longer).
 
 ---
@@ -78,8 +95,7 @@ export GDT_EDGE_IMAGE=ghcr.io/YOUR_GITHUB_USER/gdt-edge-hub:latest
 **B) Manual**
 
 ```bash
-cp .env.example .env
-nano .env   # set URL, key, SERIAL_DEVICE, and GDT_EDGE_IMAGE
+nano .env   # create: URL, key, SERIAL_DEVICE, GDT_EDGE_IMAGE — see Raspberry_Pi_Setup.md
 docker compose -f docker-compose.dist.yml pull
 docker compose -f docker-compose.dist.yml up -d
 ```

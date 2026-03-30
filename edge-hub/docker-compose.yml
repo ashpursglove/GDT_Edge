@@ -1,6 +1,6 @@
 # GDT Edge Hub — Linux / Raspberry Pi (serial over USB-RS485)
 #
-# 1) Copy .env.example to .env and fill values (or run scripts/setup.sh).
+# 1) Create .env with URL, key, serial (see Raspberry_Pi_Setup.md) or run scripts/setup.sh.
 # 2) Set SERIAL_DEVICE to your adapter (ls /dev/ttyUSB* /dev/ttyAMA* /dev/serial/by-id/*).
 # 3) docker compose up -d
 # 4) Open http://<pi-ip>:8756

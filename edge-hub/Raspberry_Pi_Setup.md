@@ -87,7 +87,7 @@ git clone https://github.com/YOUR_ORG/GDT_Edge.git
 cd GDT_Edge/edge-hub
 ```
 
-You need at least: `docker-compose.dist.yml`, `.env.example`, and (optional) `scripts/friend-setup.sh`.
+You need at least: `docker-compose.dist.yml` and (optional) `scripts/friend-setup.sh`. You will create `.env` locally (§6).
 
 ---
 
@@ -123,11 +123,10 @@ cd ~/GDT_Edge/edge-hub
 (Change the path if your copy lives elsewhere.)
 
 ```bash
-cp .env.example .env
 nano .env
 ```
 
-Set at least:
+Create the file if it does not exist. Set at least:
 
 ```env
 GDT_EDGE_IMAGE=dockerash1987/gdt-edge-hub:latest
@@ -198,6 +197,7 @@ If `.env` was filled before first run, **Settings** should already show the cons
 | Serial still blocked | In `docker-compose.dist.yml`, uncomment **`privileged: true`** under the service, then `docker compose -f docker-compose.dist.yml up -d` again. |
 | Cannot reach port 8756 | Test on the Pi: `http://127.0.0.1:8756`. Check firewall. |
 | No sites / reactors | API key must match the server; sites/reactors must exist in the console. |
+| `no matching manifest for linux/arm64` | The image on the registry was built for **PC (amd64) only**. Whoever publishes the image must push a **multi-arch** build (`linux/amd64` + `linux/arm64`). See **`PUBLISH.md`** — Docker Hub example under “Same build, Docker Hub”. |
 
 ---
 

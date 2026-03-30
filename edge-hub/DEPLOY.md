@@ -11,7 +11,7 @@ You need two secrets from whoever runs the console (same values as Vercel **`GDT
 
 ## For maintainers: build and publish an image
 
-If you ship a pre-built image (Docker Hub or GitHub Container Registry), the field installer only needs `docker-compose.dist.yml`, `.env.example`, and optionally `scripts/friend-setup.sh`. See **[PUBLISH.md](./PUBLISH.md)** for build/push steps. Site install steps: **[Raspberry_Pi_Setup.md](./Raspberry_Pi_Setup.md)**.
+If you ship a pre-built image (Docker Hub or GitHub Container Registry), the field installer needs `docker-compose.dist.yml` and optionally `scripts/friend-setup.sh`, and creates `.env` on site. See **[PUBLISH.md](./PUBLISH.md)** for build/push steps. Site install steps: **[Raspberry_Pi_Setup.md](./Raspberry_Pi_Setup.md)**.
 
 ---
 
@@ -36,8 +36,8 @@ If you ship a pre-built image (Docker Hub or GitHub Container Registry), the fie
    Or manually:
 
    ```bash
-   cp .env.example .env
-   # Edit .env with nano .env — set URL, key, and SERIAL_DEVICE if not ttyUSB0
+   nano .env
+   # Create the file: URL, key, SERIAL_DEVICE (see Raspberry_Pi_Setup.md). Then:
    docker compose up -d --build
    ```
 
