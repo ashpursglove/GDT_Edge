@@ -1,0 +1,14 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+*.db
+data/*.db
+data/*.db-journal
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+*.md
+!README.md
