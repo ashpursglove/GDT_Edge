@@ -62,6 +62,7 @@ class SiteDTO(BaseModel):
     id: int
     slug: str | None = None
     name: str | None = None
+    timezone: str | None = None
 
 
 class ReactorDTO(BaseModel):

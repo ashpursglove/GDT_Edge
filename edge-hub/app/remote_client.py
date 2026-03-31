@@ -83,6 +83,7 @@ def fetch_sites(base_url: str, api_key: str) -> list[SiteDTO]:
                     id=int(it["id"]),
                     slug=it.get("slug"),
                     name=it.get("name"),
+                    timezone=it.get("timezone"),
                 )
             )
     return out

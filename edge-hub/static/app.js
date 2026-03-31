@@ -247,7 +247,8 @@ function populateSiteSelect() {
   for (const st of allSitesCache) {
     const o = document.createElement("option");
     o.value = String(st.id);
-    o.textContent = `${st.name || st.slug || st.id} (#${st.id})`;
+    const tz = st.timezone ? ` · ${st.timezone}` : "";
+    o.textContent = `${st.name || st.slug || st.id} (#${st.id})${tz}`;
     sel.appendChild(o);
   }
   if (prev && allSitesCache.some((s) => String(s.id) === prev)) {
