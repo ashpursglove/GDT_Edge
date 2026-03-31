@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -22,6 +22,7 @@ from app.schemas import (
     HubSettings,
     LocalReactorOut,
     LocalReactorPatch,
+    LocalReactorWithDevicesOut,
 )
 from app.bootstrap import apply_env_preseed_if_needed
 from app.services.runtime import runtime
@@ -62,7 +63,13 @@ def get_settings(db: Session = Depends(get_db)) -> HubSettings:
 
 @app.put("/api/settings", response_model=HubSettings)
 def put_settings(body: HubSettings, db: Session = Depends(get_db)) -> HubSettings:
-    save_hub_settings(db, body)
+    cur = load_hub_settings(db)
+    data = body.model_dump()
+    if data.get("last_upload_success_utc") is None and cur.last_upload_success_utc is not None:
+        data["last_upload_success_utc"] = cur.last_upload_success_utc
+    if not data.get("last_upload_detail") and cur.last_upload_detail:
+        data["last_upload_detail"] = cur.last_upload_detail
+    save_hub_settings(db, HubSettings.model_validate(data))
     return load_hub_settings(db)
 
 
@@ -144,7 +151,7 @@ def _effective_site_id(db: Session, site_id: int | None) -> int | None:
     return load_hub_settings(db).selected_site_id
 
 
-@app.get("/api/local-reactors", response_model=list[LocalReactorOut])
+@app.get("/api/local-reactors", response_model=list[LocalReactorWithDevicesOut])
 def list_local_reactors(
     site_id: int | None = Query(None, description="Filter to console site; defaults to saved selection"),
     db: Session = Depends(get_db),
@@ -152,15 +159,20 @@ def list_local_reactors(
     sid = _effective_site_id(db, site_id)
     if sid is None:
         return []
-    return list(
+    rows = list(
         db.execute(
             select(LocalReactor)
+            .options(joinedload(LocalReactor.devices))
             .where(LocalReactor.site_id == sid)
             .order_by(LocalReactor.id)
         )
         .scalars()
+        .unique()
         .all()
     )
+    for r in rows:
+        r.devices.sort(key=lambda d: d.id)
+    return rows
 
 
 @app.post("/api/local-reactors/sync")
@@ -349,6 +361,14 @@ def api_outbox(
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> dict:
+    total_pending = (
+        db.scalar(
+            select(func.count())
+            .select_from(ReadingOutbox)
+            .where(ReadingOutbox.sent_at.is_(None))
+        )
+        or 0
+    )
     rows = (
         db.execute(
             select(ReadingOutbox)
@@ -375,7 +395,11 @@ def api_outbox(
                 "payload_len": len(payload),
             }
         )
-    return {"count": len(items), "rows": items}
+    return {
+        "total_pending": total_pending,
+        "rows_returned": len(items),
+        "rows": items,
+    }
 
 
 @app.get("/")

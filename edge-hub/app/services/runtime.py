@@ -16,11 +16,16 @@ from app.database import SessionLocal
 from app.modbus_driver import CustomMapReader
 from app.models import LocalReactor, ReadingOutbox
 from app.remote_client import post_readings, RemoteAPIError
-from app.services.settings_store import load_hub_settings
+from app.services.settings_store import load_hub_settings, save_hub_settings
 from app.services.sensors_store import load_sensors
 from app.schemas import LiveSnapshot
 
 logger = logging.getLogger(__name__)
+
+# Larger batches drain backlogs faster; console accepts batched readings.
+_OUTBOX_BATCH = 80
+# Short pause between batches when a backlog exists (normal interval used when idle).
+_DRAIN_PAUSE_SEC = 0.35
 
 
 def _json_safe_float(x: float | None) -> float | None:
@@ -65,6 +70,8 @@ class HubRuntime:
     def status_dict(self) -> dict[str, Any]:
         with self._lock:
             pending = 0
+            last_up: datetime | None = None
+            last_detail = ""
             db = SessionLocal()
             try:
                 pending = db.scalar(
@@ -72,6 +79,9 @@ class HubRuntime:
                     .select_from(ReadingOutbox)
                     .where(ReadingOutbox.sent_at.is_(None))
                 ) or 0
+                hub = load_hub_settings(db)
+                last_up = hub.last_upload_success_utc
+                last_detail = hub.last_upload_detail or ""
             finally:
                 db.close()
             return {
@@ -80,6 +90,8 @@ class HubRuntime:
                 "last_poll_utc": self._last_poll_utc,
                 "serial_open": self._serial_open,
                 "pending_uploads": pending,
+                "last_upload_success_utc": last_up,
+                "last_upload_detail": last_detail,
             }
 
     def live_snapshots(self) -> list[LiveSnapshot]:
@@ -326,24 +338,29 @@ class HubRuntime:
     def _sync_loop(self) -> None:
         while not self._stop.is_set():
             db = SessionLocal()
+            wait_sec = 60.0
             try:
                 settings = load_hub_settings(db)
-                interval = max(5, settings.sync_interval_sec)
+                interval = float(max(5, settings.sync_interval_sec))
+                wait_sec = interval
                 base = settings.api_base_url.strip()
                 key = settings.api_key.strip()
 
                 if base and key:
-                    rows = (
-                        db.execute(
-                            select(ReadingOutbox)
-                            .where(ReadingOutbox.sent_at.is_(None))
-                            .order_by(ReadingOutbox.id)
-                            .limit(50)
+                    while not self._stop.is_set():
+                        rows = (
+                            db.execute(
+                                select(ReadingOutbox)
+                                .where(ReadingOutbox.sent_at.is_(None))
+                                .order_by(ReadingOutbox.id)
+                                .limit(_OUTBOX_BATCH)
+                            )
+                            .scalars()
+                            .all()
                         )
-                        .scalars()
-                        .all()
-                    )
-                    if rows:
+                        if not rows:
+                            break
+
                         readings: list[dict] = []
                         posted_rows: list[ReadingOutbox] = []
                         json_errors = False
@@ -357,42 +374,66 @@ class HubRuntime:
                                 json_errors = True
                         if json_errors:
                             db.commit()
-                        if readings:
-                            try:
-                                post_readings(base, key, readings)
+                        if not readings:
+                            break
+
+                        try:
+                            post_readings(base, key, readings)
+                            now = datetime.now(timezone.utc)
+                            for row in posted_rows:
+                                row.sent_at = now
+                                row.last_error = None
+                            hub = load_hub_settings(db)
+                            hub.last_upload_success_utc = now
+                            hub.last_upload_detail = (
+                                f"Uploaded {len(readings)} reading(s) to GDT Console"
+                            )
+                            save_hub_settings(db, hub)
+                            self._last_error = None
+                        except RemoteAPIError as exc:
+                            msg = str(exc)
+                            if "Reactor not found:" in msg:
                                 now = datetime.now(timezone.utc)
                                 for row in posted_rows:
                                     row.sent_at = now
-                                    row.last_error = None
+                                    row.last_error = msg[:2000]
+                                    row.attempts = row.attempts + 1
                                 db.commit()
-                            except RemoteAPIError as exc:
-                                msg = str(exc)
-                                # If the console says a reactor id doesn't exist, these queued rows will never succeed.
-                                # Drop them from the retry loop (mark as sent) so new valid readings can flow.
-                                if "Reactor not found:" in msg:
-                                    now = datetime.now(timezone.utc)
-                                    for row in posted_rows:
-                                        row.sent_at = now
-                                        row.last_error = msg[:2000]
-                                        row.attempts = row.attempts + 1
-                                    db.commit()
-                                    self._last_error = (
-                                        f"{msg} — resync reactors from console (Sites & reactors → select site) "
-                                        "so local reactors point at valid console reactor ids."
-                                    )
-                                else:
-                                    for row in posted_rows:
-                                        row.last_error = msg[:2000]
-                                        row.attempts = row.attempts + 1
-                                    db.commit()
-                                    self._last_error = msg
+                                self._last_error = (
+                                    f"{msg} — resync reactors from console (Sites & reactors → select site) "
+                                    "so local reactors point at valid console reactor ids."
+                                )
+                            else:
+                                for row in posted_rows:
+                                    row.last_error = msg[:2000]
+                                    row.attempts = row.attempts + 1
+                                db.commit()
+                                self._last_error = msg
+                            wait_sec = interval
+                            break
+
+                        remaining = (
+                            db.scalar(
+                                select(func.count())
+                                .select_from(ReadingOutbox)
+                                .where(ReadingOutbox.sent_at.is_(None))
+                            )
+                            or 0
+                        )
+                        if remaining > 0:
+                            wait_sec = _DRAIN_PAUSE_SEC
+                            if self._stop.wait(_DRAIN_PAUSE_SEC):
+                                return
+                            continue
+                        wait_sec = interval
+                        break
             except Exception as exc:  # noqa: BLE001
                 logger.exception("sync loop")
                 self._last_error = str(exc)
             finally:
                 db.close()
 
-            if self._stop.wait(timeout=interval):
+            if self._stop.wait(timeout=wait_sec):
                 break
 
 

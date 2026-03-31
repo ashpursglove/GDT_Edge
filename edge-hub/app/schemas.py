@@ -14,6 +14,8 @@ class HubSettings(BaseModel):
     poll_interval_ms: int = 1000
     sync_interval_sec: int = 60
     selected_site_id: int | None = None
+    last_upload_success_utc: datetime | None = None
+    last_upload_detail: str = ""
 
 
 class LocalReactorPatch(BaseModel):
@@ -50,6 +52,12 @@ class DeviceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class LocalReactorWithDevicesOut(LocalReactorOut):
+    """List view including Modbus devices for at-a-glance display in the UI."""
+
+    devices: list[DeviceOut] = []
+
+
 class SiteDTO(BaseModel):
     id: int
     slug: str | None = None
@@ -78,6 +86,8 @@ class ControlStatus(BaseModel):
     last_poll_utc: datetime | None = None
     serial_open: bool = False
     pending_uploads: int = 0
+    last_upload_success_utc: datetime | None = None
+    last_upload_detail: str = ""
 
 
 class LiveSnapshot(BaseModel):

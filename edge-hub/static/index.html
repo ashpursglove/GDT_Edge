@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="app-header">
       <div class="header-inner">
         <div class="brand">
@@ -22,153 +23,271 @@
               <span class="brand-name">GDT</span>
               <span class="brand-badge">Edge Hub</span>
             </div>
-            <div class="brand-sub">Algae Intelligence · local Modbus · sync to console</div>
+            <div class="brand-sub">Local Modbus · sync to GDT Console</div>
           </div>
         </div>
         <div id="headerStatus" class="pill pill-muted" role="status">Connecting…</div>
       </div>
     </header>
+    <div id="syncStatusBar" class="sync-status-bar" role="region" aria-label="Cloud sync status">
+      <div class="sync-status-inner">
+        <div class="sync-queue" id="syncQueueLine">
+          <strong>Offline queue:</strong>
+          <span id="syncPendingCount">—</span>
+          <span class="sync-hint" id="syncQueueHint"
+            >Readings are stored on this hub until the connection returns, then sent automatically in batches.</span
+          >
+        </div>
+        <div class="sync-last" id="syncLastLine">
+          <strong>Last successful upload:</strong> <span id="syncLastUpload">—</span>
+        </div>
+      </div>
+    </div>
     <div class="layout">
-      <nav class="app-nav" aria-label="Sections">
-        <button type="button" data-panel="settings" class="active">Settings</button>
-        <button type="button" data-panel="sites">Sites &amp; reactors</button>
-        <button type="button" data-panel="local">Local reactors</button>
-        <button type="button" data-panel="live">Live data</button>
+      <nav class="app-nav" aria-label="Main sections">
+        <button type="button" data-panel="settings" class="active">
+          <span class="nav-step">1</span>
+          <span class="nav-text">
+            <span class="nav-label">Settings</span>
+            <span class="nav-desc">Console &amp; hardware</span>
+          </span>
+        </button>
+        <button type="button" data-panel="sites">
+          <span class="nav-step">2</span>
+          <span class="nav-text">
+            <span class="nav-label">Site</span>
+            <span class="nav-desc">Choose from console</span>
+          </span>
+        </button>
+        <button type="button" data-panel="local">
+          <span class="nav-step">3</span>
+          <span class="nav-text">
+            <span class="nav-label">Reactors</span>
+            <span class="nav-desc">Sensors &amp; Modbus</span>
+          </span>
+        </button>
+        <button type="button" data-panel="live">
+          <span class="nav-step">4</span>
+          <span class="nav-text">
+            <span class="nav-label">Live</span>
+            <span class="nav-desc">Run &amp; queue</span>
+          </span>
+        </button>
       </nav>
-      <main>
+      <main id="main-content">
         <section id="panel-settings" class="panel active">
-          <h2>Connection</h2>
+          <header class="panel-header">
+            <h1 class="panel-title">Settings</h1>
+            <p class="panel-intro">
+              Connect this hub to your GDT Console and the RS485 adapter. Use <strong>Save settings</strong> at the
+              bottom of this page to apply changes to connection, serial, and timing.
+            </p>
+          </header>
+
+          <div class="card workflow-card" id="workflowCard">
+            <h2 class="card-title">Typical setup</h2>
+            <ol class="workflow-steps">
+              <li><strong>Here:</strong> paste Console URL + API key, choose serial port, save.</li>
+              <li><strong>Site:</strong> load sites and pick one (loads reactors).</li>
+              <li><strong>Reactors:</strong> open each reactor → add sensors; each add saves immediately.</li>
+              <li><strong>Live:</strong> start monitoring.</li>
+            </ol>
+          </div>
+
+          <h2 class="section-heading">Connection</h2>
           <div class="card">
             <div class="field">
               <label for="api_base_url">Console API base URL</label>
-              <input id="api_base_url" type="url" placeholder="https://your-app.vercel.app" />
+              <input id="api_base_url" type="url" placeholder="https://your-app.vercel.app" autocomplete="url" />
             </div>
             <div class="field">
               <label for="api_key">API key (Bearer)</label>
-              <input id="api_key" type="password" autocomplete="off" placeholder="Same as GDT_INGEST_API_KEY on Vercel" />
+              <input
+                id="api_key"
+                type="password"
+                autocomplete="off"
+                placeholder="Same value as GDT_INGEST_API_KEY on Vercel"
+              />
             </div>
           </div>
 
-          <h2>Serial / Modbus</h2>
+          <h2 class="section-heading">Serial / Modbus</h2>
           <div class="card">
             <div class="row">
               <div class="field">
                 <label for="serial_port">Serial port</label>
-                <select id="serial_port"></select>
+                <select id="serial_port" aria-describedby="serialHelp"></select>
               </div>
               <div class="field">
                 <label for="baud_rate">Baud rate</label>
                 <input id="baud_rate" type="number" min="1200" step="300" value="9600" />
               </div>
             </div>
+            <p id="serialHelp" class="field-hint">USB‑RS485 adapters often appear as COM3, COM4, … on Windows or /dev/ttyUSB0 on Linux.</p>
             <div class="toolbar">
-              <button type="button" class="btn" id="btnRefreshPorts">Refresh ports</button>
+              <button type="button" class="btn secondary" id="btnRefreshPorts">Refresh port list</button>
             </div>
           </div>
 
-          <h2>Polling &amp; upload</h2>
+          <h2 class="section-heading">Polling &amp; upload</h2>
           <div class="card">
+            <p class="field-hint" style="margin-top: 0">
+              Intervals are in <strong>minutes</strong> (decimals allowed). Example: poll <code>0.02</code> ≈ 1.2&nbsp;s;
+              upload <code>1</code> = once per minute.
+            </p>
             <div class="row">
               <div class="field">
-                <label for="poll_interval_ms">Poll interval (ms)</label>
-                <input id="poll_interval_ms" type="number" min="200" step="50" value="1000" />
+                <label for="poll_interval_minutes">Poll interval (minutes)</label>
+                <input
+                  id="poll_interval_minutes"
+                  type="number"
+                  min="0.0034"
+                  step="any"
+                  value="0.016666666666666666"
+                  aria-describedby="pollHelp"
+                />
+                <span id="pollHelp" class="field-hint">How often Modbus reads run (minimum ≈ 0.0034 min ≈ 0.2 s).</span>
               </div>
               <div class="field">
-                <label for="sync_interval_sec">Upload interval (s)</label>
-                <input id="sync_interval_sec" type="number" min="5" value="60" />
+                <label for="sync_interval_minutes">Upload interval (minutes)</label>
+                <input id="sync_interval_minutes" type="number" min="0.09" step="any" value="1" />
+                <span class="field-hint">When online, how often to send a batch (minimum 5 seconds).</span>
               </div>
             </div>
           </div>
 
-          <div class="toolbar settings-save-bar">
-            <button type="button" class="btn primary" id="btnSaveSettings">Save settings</button>
+          <div class="card save-settings-card">
+            <div class="save-settings-inner">
+              <div>
+                <strong class="save-title">Apply settings</strong>
+                <p class="field-hint" style="margin: 0.25rem 0 0">
+                  Saves URL, key, serial port, baud, and intervals. Does not affect reactor devices (those save when you
+                  add or remove them).
+                </p>
+              </div>
+              <button type="button" class="btn primary btn-lg" id="btnSaveSettings">Save settings</button>
+            </div>
           </div>
-          <div id="settingsMsg" class="err" hidden></div>
+          <div id="settingsMsg" class="feedback-msg" role="status" hidden></div>
         </section>
 
         <section id="panel-sites" class="panel">
-          <h2>Site from console</h2>
+          <header class="panel-header">
+            <h1 class="panel-title">Site &amp; reactors from console</h1>
+            <p class="panel-intro">
+              Load the list of sites from your GDT Console, then choose one. Reactor rows are copied into this hub for
+              Modbus configuration.
+            </p>
+          </header>
           <div class="card">
             <div class="toolbar">
-              <button type="button" class="btn primary" id="btnLoadSites">Load sites</button>
+              <button type="button" class="btn primary" id="btnLoadSites">Load sites from console</button>
             </div>
             <div class="field">
-              <label for="site_select">Site</label>
+              <label for="site_select">Active site</label>
               <select id="site_select"></select>
             </div>
-            <p class="lead">
-              Choosing a site loads reactors from the console and updates the Local reactors tab.
-            </p>
-            <div id="remoteReactors" class="mono"></div>
-            <div id="sitesMsg" class="err" hidden></div>
+            <p id="sitesMsg" class="feedback-msg feedback-err" hidden></p>
+            <div class="sites-summary" id="remoteReactorsWrap" hidden>
+              <h3 class="subheading">Reactors on this site</h3>
+              <div id="remoteReactors" class="mono sites-reactor-list"></div>
+            </div>
           </div>
         </section>
 
         <section id="panel-local" class="panel">
-          <h2>Reactors (from console)</h2>
-          <p class="lead">
-            Select a site under <strong>Sites &amp; reactors</strong> first. Reactor rows mirror the console; add Modbus
-            devices per reactor below.
-          </p>
+          <header class="panel-header">
+            <h1 class="panel-title">Local reactors &amp; sensors</h1>
+            <p class="panel-intro">
+              Each card lists <strong>provisioned sensors and Modbus addresses (slave IDs)</strong> at a glance. Open
+              <strong>Configure sensors &amp; Modbus</strong> to add or remove devices — each change saves
+              <strong>immediately</strong> (no Save on the Settings tab). Use <strong>Include in monitoring</strong> only
+              to skip a reactor while polling.
+            </p>
+          </header>
           <div class="card">
             <div id="reactorList"></div>
-            <p id="reactorListEmpty" class="lead muted" hidden>No site selected or no reactors for this site in the console.</p>
+            <p id="reactorListEmpty" class="empty-state" hidden>
+              <span class="empty-title">No reactors yet</span>
+              <span class="empty-text">Load a site under <strong>Site</strong> and select it, or check your Console API credentials.</span>
+            </p>
           </div>
         </section>
 
         <section id="panel-live" class="panel">
-          <h2>Runtime</h2>
+          <header class="panel-header">
+            <h1 class="panel-title">Live data &amp; upload queue</h1>
+            <p class="panel-intro">
+              Start monitoring to poll Modbus and stream data. If the network drops, readings queue locally (see the bar
+              at the top) and upload when the connection returns.
+            </p>
+          </header>
+
+          <h2 class="section-heading">Runtime</h2>
           <div class="card">
-            <div class="toolbar">
-              <button type="button" class="btn primary" id="btnStart">Start monitoring</button>
-              <button type="button" class="btn danger" id="btnStop">Stop</button>
+            <div class="toolbar toolbar-spread">
+              <div class="btn-group">
+                <button type="button" class="btn primary btn-lg" id="btnStart">Start monitoring</button>
+                <button type="button" class="btn danger" id="btnStop">Stop</button>
+              </div>
             </div>
-            <p class="mono muted" id="runtimeStatus"></p>
+            <div id="runtimeStatus" class="runtime-status" aria-live="polite"></div>
+            <p id="liveError" class="feedback-msg feedback-err" hidden></p>
           </div>
 
-          <h2>Live readings</h2>
-          <div class="card">
-            <table>
-              <thead>
-                <tr>
-                  <th>Label</th>
-                  <th>Server ID</th>
-                  <th>pH</th>
-                  <th>Temp °C</th>
-                  <th>Spectral</th>
-                  <th>Custom</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="liveBody"></tbody>
-            </table>
-            <p id="liveError" class="err" hidden></p>
+          <h2 class="section-heading">Live readings</h2>
+          <div class="card card-table-wrap">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>Server ID</th>
+                    <th>pH</th>
+                    <th>Temp °C</th>
+                    <th>Spectral</th>
+                    <th>Custom</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="liveBody"></tbody>
+              </table>
+            </div>
+            <p id="liveEmpty" class="empty-state muted" hidden>No live data yet — start monitoring and ensure devices are configured.</p>
           </div>
 
-          <h2>Outbox (unsent packets)</h2>
-          <div class="card">
+          <h2 class="section-heading">Offline queue (detail)</h2>
+          <p class="panel-intro tight">
+            Each row is one packet waiting to reach the Console. Large backlogs after long outages are normal; the hub
+            sends them in batches as fast as the connection allows.
+          </p>
+          <div class="card card-table-wrap">
             <div class="toolbar">
-              <button type="button" class="btn" id="btnRefreshOutbox">Refresh</button>
+              <button type="button" class="btn secondary" id="btnRefreshOutbox">Refresh list</button>
               <span class="pill pill-muted" id="outboxCount">—</span>
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Local reactor</th>
-                  <th>Reading at (UTC)</th>
-                  <th>Attempts</th>
-                  <th>Last error</th>
-                  <th>Payload</th>
-                </tr>
-              </thead>
-              <tbody id="outboxBody"></tbody>
-            </table>
-            <p id="outboxError" class="err" hidden></p>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Local reactor</th>
+                    <th>Reading at (UTC)</th>
+                    <th>Attempts</th>
+                    <th>Last error</th>
+                    <th>Payload</th>
+                  </tr>
+                </thead>
+                <tbody id="outboxBody"></tbody>
+              </table>
+            </div>
+            <p id="outboxError" class="feedback-msg feedback-err" hidden></p>
           </div>
         </section>
       </main>
     </div>
+
+    <div id="toastRegion" class="toast-region" aria-live="polite" aria-relevant="additions"></div>
     <script src="/static/app.js"></script>
   </body>
 </html>

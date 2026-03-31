@@ -177,6 +177,52 @@ http://192.168.1.42:8756
 
 If `.env` was filled before first run, **Settings** should already show the console URL and API key. Otherwise enter them and save.
 
+### Use a name instead of memorizing an IP (mDNS)
+
+Raspberry Pi OS usually includes **mDNS** (`.local` hostnames). Set a hostname once:
+
+```bash
+sudo hostnamectl set-hostname gdt-hub
+sudo reboot
+```
+
+On a PC or phone **on the same LAN**, open:
+
+```text
+http://gdt-hub.local:8756
+```
+
+Use the same name you set (`gdt-hub` in the example). If `.local` does not resolve, use `hostname -I` and the IP as above.
+
+### Start on boot (no manual Docker after every reboot)
+
+One-time install — from your real `edge-hub` path:
+
+```bash
+cd ~/GDT_Edge/edge-hub
+chmod +x scripts/install-edge-hub-systemd.sh
+export EDGE_HUB_DIR="$HOME/GDT_Edge/edge-hub"
+export HUB_USER="$USER"
+./scripts/install-edge-hub-systemd.sh
+```
+
+Requires your user to be in the `docker` group. After this, **`docker compose up -d` runs automatically** when the Pi starts. Check: `sudo systemctl status gdt-edge-hub.service`.
+
+### Pi with desktop: one command opens the browser
+
+From `edge-hub`:
+
+```bash
+chmod +x scripts/start-hub-and-open-browser.sh
+./scripts/start-hub-and-open-browser.sh
+```
+
+Starts the stack (if needed), waits until the API responds, then opens **`http://127.0.0.1:8756`** in the default browser. You can pin this script or add it to **Startup Applications** if you want the UI after login.
+
+### Windows (Docker Desktop)
+
+Double‑click **`open-hub.cmd`** in the `edge-hub` folder (with Docker Desktop running). It runs Compose and opens **`http://127.0.0.1:8756`**.
+
 ---
 
 ## 9. Finish configuration in the UI
@@ -213,6 +259,38 @@ docker compose -f docker-compose.dist.yml up -d
 ```
 
 Data persists under **`./data`** next to the compose file.
+
+### After a full shutdown or reboot (get running again)
+
+If you installed **systemd** (see §8), the hub container usually starts by itself after boot — open **`http://<pi-hostname>.local:8756`** or **`http://127.0.0.1:8756`** on the Pi.
+
+Otherwise:
+
+1. **Power on the Pi** and wait until it has finished booting (network is up).
+2. **Open a terminal** on the Pi (or SSH in).
+3. **Go to the `edge-hub` folder** (use your real path if different):
+
+   ```bash
+   cd ~/GDT_Edge/edge-hub
+   ```
+
+4. **Start the hub** (safe even if it was already running):
+
+   ```bash
+   docker compose -f docker-compose.dist.yml up -d
+   ```
+
+5. **Check** (optional):
+
+   ```bash
+   docker compose -f docker-compose.dist.yml ps
+   ```
+
+   The `gdt-edge-hub` service should be **running**.
+
+6. **Open the UI in a browser** — on the Pi: `http://127.0.0.1:8756` — or from another device: `http://<pi-ip>:8756` or `http://<hostname>.local:8756`.
+
+No need to edit `.env` again unless something changed. **Pull** (`docker compose … pull`) is only required when GDT publishes a **new image** you want to install.
 
 ---
 

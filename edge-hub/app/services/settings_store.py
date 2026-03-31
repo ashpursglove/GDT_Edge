@@ -24,7 +24,7 @@ def load_hub_settings(db: Session) -> HubSettings:
 
 def save_hub_settings(db: Session, s: HubSettings) -> None:
     row = db.get(KVSetting, KV_KEY)
-    payload = s.model_dump()
+    payload = s.model_dump(mode="json")
     text = json.dumps(payload)
     if row:
         row.value = text
