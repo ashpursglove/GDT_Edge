@@ -1,0 +1,23 @@
+# Install with scripts/install-edge-hub-systemd.sh (sets WorkingDirectory).
+# Or copy to /etc/systemd/system/ and edit paths, then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gdt-edge-hub.service
+
+[Unit]
+Description=GDT Edge Hub (Docker Compose)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Run as a user in the "docker" group; adjust User and WorkingDirectory to match the Pi.
+User=REPLACE_USER
+Group=docker
+WorkingDirectory=REPLACE_EDGE_HUB_DIR
+ExecStart=/usr/bin/docker compose -f docker-compose.dist.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.dist.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
