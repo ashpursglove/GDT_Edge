@@ -16,6 +16,9 @@ class HubSettings(BaseModel):
     selected_site_id: int | None = None
     last_upload_success_utc: datetime | None = None
     last_upload_detail: str = ""
+    calibration_mode: bool = False
+    calibration_saved_poll_interval_ms: int | None = None
+    calibration_saved_sync_interval_sec: int | None = None
 
 
 class LocalReactorPatch(BaseModel):

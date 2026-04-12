@@ -12,7 +12,7 @@
     />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body id="appBody">
     <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="app-header">
       <div class="header-inner">
@@ -66,8 +66,15 @@
             <span class="nav-desc">Sensors &amp; Modbus</span>
           </span>
         </button>
-        <button type="button" data-panel="live">
+        <button type="button" data-panel="calibration">
           <span class="nav-step">4</span>
+          <span class="nav-text">
+            <span class="nav-label">Calibration</span>
+            <span class="nav-desc">pH / fast sampling</span>
+          </span>
+        </button>
+        <button type="button" data-panel="live">
+          <span class="nav-step">5</span>
           <span class="nav-text">
             <span class="nav-label">Live</span>
             <span class="nav-desc">Run &amp; queue</span>
@@ -82,6 +89,7 @@
               Connect this hub to your GDT Console and the RS485 adapter. Use <strong>Save settings</strong> at the
               bottom of this page to apply changes to connection, serial, and timing.
             </p>
+            <div id="settingsCalibrationBanner" class="calibration-settings-banner" role="status" hidden></div>
           </header>
 
           <div class="card workflow-card" id="workflowCard">
@@ -90,6 +98,7 @@
               <li><strong>Here:</strong> paste Console URL + API key, choose serial port, save.</li>
               <li><strong>Site:</strong> load sites and pick one (loads reactors).</li>
               <li><strong>Reactors:</strong> open each reactor → add sensors; each add saves immediately.</li>
+              <li><strong>Calibration:</strong> optional fast poll/upload for pH calibration.</li>
               <li><strong>Live:</strong> start monitoring.</li>
             </ol>
           </div>
@@ -211,6 +220,25 @@
               <span class="empty-title">No reactors yet</span>
               <span class="empty-text">Load a site under <strong>Site</strong> and select it, or check your Console API credentials.</span>
             </p>
+          </div>
+        </section>
+
+        <section id="panel-calibration" class="panel">
+          <header class="panel-header">
+            <h1 class="panel-title">Calibration mode</h1>
+            <p class="panel-intro">
+              For <strong>pH calibration</strong>, use faster sampling so you can compare readings against buffer
+              standards. One button switches poll interval to <strong>every 5 seconds</strong> and upload to
+              <strong>every 15 seconds</strong>, then restores your normal Settings values when you turn it off.
+            </p>
+          </header>
+          <div class="card" id="calibrationCard">
+            <p id="calibrationStatusText" class="lead"></p>
+            <p id="calibrationDetail" class="field-hint"></p>
+            <div class="toolbar" style="margin-top: 1rem">
+              <button type="button" class="btn primary btn-lg" id="btnCalibrationToggle"></button>
+            </div>
+            <p id="calibrationMsg" class="feedback-msg" hidden></p>
           </div>
         </section>
 

@@ -27,6 +27,9 @@ from app.schemas import (
 from app.bootstrap import apply_env_preseed_if_needed
 from app.services.runtime import runtime
 from app.services.settings_store import load_hub_settings, merge_hub_settings, save_hub_settings
+
+CALIBRATION_POLL_MS = 5000
+CALIBRATION_SYNC_SEC = 15
 from app.services.sensors_store import load_sensors, save_sensors
 
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +72,12 @@ def put_settings(body: HubSettings, db: Session = Depends(get_db)) -> HubSetting
         data["last_upload_success_utc"] = cur.last_upload_success_utc
     if not data.get("last_upload_detail") and cur.last_upload_detail:
         data["last_upload_detail"] = cur.last_upload_detail
+    if cur.calibration_mode:
+        data["calibration_mode"] = True
+        data["calibration_saved_poll_interval_ms"] = cur.calibration_saved_poll_interval_ms
+        data["calibration_saved_sync_interval_sec"] = cur.calibration_saved_sync_interval_sec
+        data["poll_interval_ms"] = cur.poll_interval_ms
+        data["sync_interval_sec"] = cur.sync_interval_sec
     save_hub_settings(db, HubSettings.model_validate(data))
     return load_hub_settings(db)
 
@@ -232,18 +241,7 @@ def sync_local_reactors_from_console(
                     )
                 )
 
-        save_hub_settings(
-            db,
-            HubSettings(
-                api_base_url=hub.api_base_url,
-                api_key=hub.api_key,
-                serial_port=hub.serial_port,
-                baud_rate=hub.baud_rate,
-                poll_interval_ms=hub.poll_interval_ms,
-                sync_interval_sec=hub.sync_interval_sec,
-                selected_site_id=site_id,
-            ),
-        )
+        save_hub_settings(db, hub.model_copy(update={"selected_site_id": site_id}))
     except Exception as exc:  # noqa: BLE001
         logger.exception("sync_local_reactors_from_console failed")
         db.rollback()
@@ -340,6 +338,50 @@ def control_start() -> dict[str, bool]:
 def control_stop() -> dict[str, bool]:
     runtime.stop()
     return {"ok": True}
+
+
+def _restart_runtime_if_was_running(was_running: bool) -> None:
+    if was_running:
+        runtime.stop()
+        runtime.start()
+
+
+@app.post("/api/calibration/enable", response_model=HubSettings)
+def calibration_enable(db: Session = Depends(get_db)) -> HubSettings:
+    hub = load_hub_settings(db)
+    if hub.calibration_mode:
+        return hub
+    was_running = runtime.running
+    hub.calibration_saved_poll_interval_ms = hub.poll_interval_ms
+    hub.calibration_saved_sync_interval_sec = hub.sync_interval_sec
+    hub.poll_interval_ms = CALIBRATION_POLL_MS
+    hub.sync_interval_sec = CALIBRATION_SYNC_SEC
+    hub.calibration_mode = True
+    save_hub_settings(db, hub)
+    _restart_runtime_if_was_running(was_running)
+    return load_hub_settings(db)
+
+
+@app.post("/api/calibration/disable", response_model=HubSettings)
+def calibration_disable(db: Session = Depends(get_db)) -> HubSettings:
+    hub = load_hub_settings(db)
+    if not hub.calibration_mode:
+        return hub
+    was_running = runtime.running
+    if hub.calibration_saved_poll_interval_ms is not None:
+        hub.poll_interval_ms = hub.calibration_saved_poll_interval_ms
+    else:
+        hub.poll_interval_ms = 1000
+    if hub.calibration_saved_sync_interval_sec is not None:
+        hub.sync_interval_sec = hub.calibration_saved_sync_interval_sec
+    else:
+        hub.sync_interval_sec = 60
+    hub.calibration_saved_poll_interval_ms = None
+    hub.calibration_saved_sync_interval_sec = None
+    hub.calibration_mode = False
+    save_hub_settings(db, hub)
+    _restart_runtime_if_was_running(was_running)
+    return load_hub_settings(db)
 
 
 @app.get("/api/status")

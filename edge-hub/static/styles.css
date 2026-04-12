@@ -49,6 +49,37 @@ body {
   color: var(--foreground);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  transition:
+    background 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+/* Calibration mode — obvious visual cue site-wide */
+body.calibration-active {
+  background: color-mix(in oklch, var(--destructive) 12%, var(--background));
+  box-shadow: inset 0 0 0 9999px color-mix(in oklch, oklch(0.55 0.22 25) 14%, transparent);
+}
+
+body.calibration-active .app-header,
+body.calibration-active .sync-status-bar {
+  background: color-mix(in oklch, oklch(0.55 0.2 25) 10%, var(--card-deep));
+}
+
+.calibration-settings-banner {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in oklch, var(--destructive) 45%, var(--border));
+  background: color-mix(in oklch, var(--destructive) 14%, var(--card));
+  color: color-mix(in oklch, var(--destructive) 15%, var(--foreground));
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.calibration-card-active {
+  border-color: color-mix(in oklch, var(--destructive) 50%, var(--border)) !important;
+  background: color-mix(in oklch, var(--destructive) 10%, var(--card)) !important;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--destructive) 25%, transparent);
 }
 
 .skip-link {
@@ -670,8 +701,8 @@ main {
   opacity: 0;
   transform: translateY(0.5rem);
   transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+    opacity 0.4s ease,
+    transform 0.4s ease;
   pointer-events: auto;
 }
 

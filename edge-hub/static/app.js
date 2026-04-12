@@ -28,7 +28,9 @@ function showOk(el, msg) {
   }
 }
 
-let toastTimer = null;
+const TOAST_VISIBLE_MS = 10000;
+const TOAST_FADE_OUT_MS = 400;
+
 function showToast(message, variant = "info") {
   const region = $("toastRegion");
   if (!region) return;
@@ -38,11 +40,11 @@ function showToast(message, variant = "info") {
   t.textContent = message;
   region.appendChild(t);
   requestAnimationFrame(() => t.classList.add("toast-visible"));
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
+  // Each toast has its own timer — do not use one global timer or new toasts cancel previous dismissals.
+  window.setTimeout(() => {
     t.classList.remove("toast-visible");
-    setTimeout(() => t.remove(), 300);
-  }, 4200);
+    window.setTimeout(() => t.remove(), TOAST_FADE_OUT_MS);
+  }, TOAST_VISIBLE_MS);
 }
 
 async function api(path, opts = {}) {
@@ -75,6 +77,9 @@ function navInit() {
       if (id === "local") {
         loadLocalReactors().catch(() => {});
       }
+      if (id === "calibration") {
+        refreshCalibrationPanel();
+      }
     });
   });
 }
@@ -103,15 +108,69 @@ async function syncSensors() {
   await loadLocalSensors();
 }
 
+function applyCalibrationUi() {
+  const on = !!lastSettings.calibration_mode;
+  $("appBody")?.classList.toggle("calibration-active", on);
+  const banner = $("settingsCalibrationBanner");
+  if (banner) {
+    if (on) {
+      banner.hidden = false;
+      banner.innerHTML =
+        "<strong>Calibration mode active.</strong> Poll every <strong>5 s</strong> and upload every <strong>15 s</strong>. The fields below show your saved normal intervals (read-only until you exit calibration on the <strong>Calibration</strong> tab).";
+    } else {
+      banner.hidden = true;
+      banner.innerHTML = "";
+    }
+  }
+}
+
+function refreshCalibrationPanel() {
+  const on = !!lastSettings.calibration_mode;
+  const card = $("calibrationCard");
+  const btn = $("btnCalibrationToggle");
+  const status = $("calibrationStatusText");
+  const detail = $("calibrationDetail");
+  if (!btn || !card || !status || !detail) return;
+  if (on) {
+    card.classList.add("calibration-card-active");
+    btn.textContent = "Exit calibration mode";
+    btn.className = "btn danger btn-lg";
+    status.innerHTML =
+      "<strong>Calibration mode is ON.</strong> This screen and the rest of the app use a red tint as a reminder.";
+    detail.textContent =
+      "Run your pH (or other) procedure against calibration standards. When you are finished, click above to restore your previous poll and upload intervals from Settings and return to normal operation.";
+  } else {
+    card.classList.remove("calibration-card-active");
+    btn.textContent = "Enter calibration mode";
+    btn.className = "btn primary btn-lg";
+    status.textContent = "Normal operation — poll and upload follow the values saved on the Settings page.";
+    detail.textContent =
+      "This will remember your current intervals, set sampling to every 5 seconds and uploads every 15 seconds, and restart monitoring if it is running. Click again when calibration is complete to restore.";
+  }
+}
+
 async function loadSettings() {
   const s = await api("/api/settings");
   lastSettings = s;
   $("api_base_url").value = s.api_base_url || "";
   $("api_key").value = s.api_key || "";
   $("baud_rate").value = s.baud_rate || 9600;
-  $("poll_interval_minutes").value = String(msToPollMinutes(s.poll_interval_ms ?? 1000));
-  $("sync_interval_minutes").value = String(secToUploadMinutes(s.sync_interval_sec ?? 60));
+  const cal = !!s.calibration_mode;
+  if (cal && s.calibration_saved_poll_interval_ms != null) {
+    $("poll_interval_minutes").value = String(msToPollMinutes(s.calibration_saved_poll_interval_ms));
+  } else {
+    $("poll_interval_minutes").value = String(msToPollMinutes(s.poll_interval_ms ?? 1000));
+  }
+  if (cal && s.calibration_saved_sync_interval_sec != null) {
+    $("sync_interval_minutes").value = String(secToUploadMinutes(s.calibration_saved_sync_interval_sec));
+  } else {
+    $("sync_interval_minutes").value = String(secToUploadMinutes(s.sync_interval_sec ?? 60));
+  }
+  $("poll_interval_minutes").disabled = cal;
+  $("sync_interval_minutes").disabled = cal;
   await refreshPorts(s.serial_port);
+  applyCalibrationUi();
+  refreshCalibrationPanel();
 }
 
 async function refreshPorts(selected) {
@@ -210,20 +269,53 @@ function formatRuntimeStatus(st) {
   return lines.join("");
 }
 
-async function saveSettings() {
-  showErr($("settingsMsg"), "");
+function buildHubSettingsBody() {
   const siteVal = $("site_select").value;
-  const body = {
+  const cal = !!lastSettings.calibration_mode;
+  return {
     api_base_url: $("api_base_url").value.trim(),
     api_key: $("api_key").value.trim(),
     serial_port: $("serial_port").value,
     baud_rate: Number($("baud_rate").value) || 9600,
-    poll_interval_ms: pollMinutesToMs($("poll_interval_minutes").value),
-    sync_interval_sec: uploadMinutesToSec($("sync_interval_minutes").value),
+    poll_interval_ms: cal
+      ? lastSettings.poll_interval_ms
+      : pollMinutesToMs($("poll_interval_minutes").value),
+    sync_interval_sec: cal
+      ? lastSettings.sync_interval_sec
+      : uploadMinutesToSec($("sync_interval_minutes").value),
     selected_site_id: siteVal ? numOrNull(siteVal) : lastSettings.selected_site_id ?? null,
+    calibration_mode: lastSettings.calibration_mode ?? false,
+    calibration_saved_poll_interval_ms: lastSettings.calibration_saved_poll_interval_ms ?? null,
+    calibration_saved_sync_interval_sec: lastSettings.calibration_saved_sync_interval_sec ?? null,
+    last_upload_success_utc: lastSettings.last_upload_success_utc ?? null,
+    last_upload_detail: lastSettings.last_upload_detail ?? "",
   };
-  lastSettings = await api("/api/settings", { method: "PUT", body: JSON.stringify(body) });
+}
+
+async function saveSettings() {
+  showErr($("settingsMsg"), "");
+  lastSettings = await api("/api/settings", {
+    method: "PUT",
+    body: JSON.stringify(buildHubSettingsBody()),
+  });
+  await loadSettings();
   showToast("Settings saved.", "success");
+}
+
+async function toggleCalibration() {
+  showErr($("calibrationMsg"), "");
+  try {
+    if (lastSettings.calibration_mode) {
+      lastSettings = await api("/api/calibration/disable", { method: "POST", body: "{}" });
+      showToast("Calibration mode off — normal intervals restored.", "success");
+    } else {
+      lastSettings = await api("/api/calibration/enable", { method: "POST", body: "{}" });
+      showToast("Calibration mode on — 5 s poll, 15 s upload.", "success");
+    }
+    await loadSettings();
+  } catch (e) {
+    showErr($("calibrationMsg"), String(e.message || e));
+  }
 }
 
 function populateSiteSelect() {
@@ -694,6 +786,8 @@ async function init() {
   });
 
   $("btnRefreshOutbox").addEventListener("click", () => refreshOutbox());
+
+  $("btnCalibrationToggle")?.addEventListener("click", () => toggleCalibration());
 
   $("btnLoadSites").addEventListener("click", async () => {
     try {
