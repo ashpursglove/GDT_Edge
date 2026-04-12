@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 
 import httpx
 
 from app.schemas import ReactorDTO, SiteDTO, SensorDTO
 
-DEFAULT_TIMEOUT = 30.0
+logger = logging.getLogger(__name__)
+
+# Longer read timeout for large ingest batches; shorter connect so DNS failures fail fast and retry.
+DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+POST_READINGS_RETRIES = 4
+POST_READINGS_RETRY_DELAY_SEC = 0.75
 
 
 class RemoteAPIError(Exception):
@@ -65,9 +72,13 @@ def _parse_json_response(r: httpx.Response) -> dict | list:
     return data
 
 
+def _client() -> httpx.Client:
+    return httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True)
+
+
 def fetch_sites(base_url: str, api_key: str) -> list[SiteDTO]:
     url = base_url.rstrip("/") + "/api/ingest/v1/sites"
-    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+    with _client() as client:
         r = client.get(url, headers=_headers(api_key))
     if r.status_code >= 400:
         raise RemoteAPIError(_error_message_from_response(r), r.status_code)
@@ -91,7 +102,7 @@ def fetch_sites(base_url: str, api_key: str) -> list[SiteDTO]:
 
 def fetch_reactors(base_url: str, api_key: str, site_id: int) -> list[ReactorDTO]:
     url = base_url.rstrip("/") + f"/api/ingest/v1/sites/{site_id}/reactors"
-    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+    with _client() as client:
         r = client.get(url, headers=_headers(api_key))
     if r.status_code >= 400:
         raise RemoteAPIError(_error_message_from_response(r), r.status_code)
@@ -114,7 +125,7 @@ def fetch_reactors(base_url: str, api_key: str, site_id: int) -> list[ReactorDTO
 
 def fetch_sensors(base_url: str, api_key: str) -> list[SensorDTO]:
     url = base_url.rstrip("/") + "/api/ingest/v1/sensors"
-    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+    with _client() as client:
         r = client.get(url, headers=_headers(api_key))
     if r.status_code >= 400:
         raise RemoteAPIError(_error_message_from_response(r), r.status_code)
@@ -140,9 +151,36 @@ def fetch_sensors(base_url: str, api_key: str) -> list[SensorDTO]:
 
 
 def post_readings(base_url: str, api_key: str, readings: list[dict]) -> None:
+    """POST readings to console. Retries on DNS/transient transport errors (common on phone hotspots)."""
     url = base_url.rstrip("/") + "/api/ingest/v1/readings"
     body = {"readings": readings}
-    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
-        r = client.post(url, headers=_headers(api_key), json=body)
-    if r.status_code >= 400:
-        raise RemoteAPIError(_error_message_from_response(r), r.status_code)
+    last_transport: Exception | None = None
+    for attempt in range(POST_READINGS_RETRIES):
+        try:
+            with _client() as client:
+                r = client.post(url, headers=_headers(api_key), json=body)
+            if r.status_code >= 400:
+                raise RemoteAPIError(_error_message_from_response(r), r.status_code)
+            return
+        except httpx.RequestError as exc:
+            last_transport = exc
+            logger.warning(
+                "ingest transport error (attempt %s/%s): %s",
+                attempt + 1,
+                POST_READINGS_RETRIES,
+                exc,
+            )
+            if attempt < POST_READINGS_RETRIES - 1:
+                time.sleep(POST_READINGS_RETRY_DELAY_SEC * (attempt + 1))
+    assert last_transport is not None
+    hint = (
+        " DNS could not resolve the hostname (no internet yet, or hotspot DNS not ready). "
+        "Wait a minute after connecting, try ping/curl to the console URL from the Pi, "
+        "or set DNS to 8.8.8.8 on the Pi."
+    )
+    msg = str(last_transport)
+    if "name resolution" in msg.lower() or "gaierror" in msg.lower() or "-3" in msg:
+        msg = f"{msg}.{hint}"
+    else:
+        msg = f"{msg} Check network and that the Console URL is correct."
+    raise RemoteAPIError(msg) from last_transport

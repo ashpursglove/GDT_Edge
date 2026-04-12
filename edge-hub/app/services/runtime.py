@@ -23,9 +23,35 @@ from app.schemas import LiveSnapshot
 logger = logging.getLogger(__name__)
 
 # Larger batches drain backlogs faster; console accepts batched readings.
-_OUTBOX_BATCH = 80
-# Short pause between batches when a backlog exists (normal interval used when idle).
-_DRAIN_PAUSE_SEC = 0.35
+_OUTBOX_BATCH = 150
+# Minimal pause between successful batches while a backlog exists (ignore normal upload interval).
+_DRAIN_PAUSE_SEC = 0.02
+# After a failed POST, retry soon instead of waiting the full user upload interval.
+_RETRY_AFTER_HTTP_ERROR_SEC = 5.0
+_RETRY_AFTER_TRANSIENT_SEC = 3.0
+
+
+def _transient_network_error(msg: str) -> bool:
+    """DNS / transport failures — do not bump per-row attempt counts; retry quickly."""
+    m = msg.lower()
+    return any(
+        x in m
+        for x in (
+            "name resolution",
+            "getaddrinfo",
+            "temporary failure",
+            "cannot reach console",
+            "connection refused",
+            "connection reset",
+            "timed out",
+            "timeout",
+            "network is unreachable",
+            "no route to host",
+            "errno 11",
+            "errno -3",
+            "failed to resolve",
+        )
+    )
 
 
 def _json_safe_float(x: float | None) -> float | None:
@@ -403,13 +429,18 @@ class HubRuntime:
                                     f"{msg} — resync reactors from console (Sites & reactors → select site) "
                                     "so local reactors point at valid console reactor ids."
                                 )
+                                wait_sec = interval
+                            elif _transient_network_error(msg):
+                                # Keep rows pending; hotspot/DNS often recovers in seconds.
+                                self._last_error = msg
+                                wait_sec = _RETRY_AFTER_TRANSIENT_SEC
                             else:
                                 for row in posted_rows:
                                     row.last_error = msg[:2000]
                                     row.attempts = row.attempts + 1
                                 db.commit()
                                 self._last_error = msg
-                            wait_sec = interval
+                                wait_sec = min(interval, _RETRY_AFTER_HTTP_ERROR_SEC)
                             break
 
                         remaining = (
