@@ -366,6 +366,7 @@ class HubRuntime:
             db = SessionLocal()
             wait_sec = 60.0
             try:
+                db.expire_all()
                 settings = load_hub_settings(db)
                 interval = float(max(5, settings.sync_interval_sec))
                 wait_sec = interval
@@ -416,6 +417,7 @@ class HubRuntime:
                             )
                             save_hub_settings(db, hub)
                             self._last_error = None
+                            db.expire_all()
                         except RemoteAPIError as exc:
                             msg = str(exc)
                             if "Reactor not found:" in msg:

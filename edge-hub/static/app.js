@@ -116,7 +116,7 @@ function applyCalibrationUi() {
     if (on) {
       banner.hidden = false;
       banner.innerHTML =
-        "<strong>Calibration mode active.</strong> Poll every <strong>5 s</strong> and upload every <strong>15 s</strong>. The fields below show your saved normal intervals (read-only until you exit calibration on the <strong>Calibration</strong> tab).";
+        "<strong>Calibration mode active.</strong> Modbus polling runs every <strong>5 s</strong>; queued readings still upload to the console on your normal <strong>Settings</strong> upload interval. The poll/upload fields below show your saved normal values (read-only until you exit calibration on the <strong>Calibration</strong> tab).";
     } else {
       banner.hidden = true;
       banner.innerHTML = "";
@@ -138,14 +138,14 @@ function refreshCalibrationPanel() {
     status.innerHTML =
       "<strong>Calibration mode is ON.</strong> This screen and the rest of the app use a red tint as a reminder.";
     detail.textContent =
-      "Run your pH (or other) procedure against calibration standards. When you are finished, click above to restore your previous poll and upload intervals from Settings and return to normal operation.";
+      "Run your pH (or other) procedure against calibration standards. Live data still syncs to the online console on your usual upload schedule. When you are finished, click above to restore your previous poll interval from Settings and return to normal operation.";
   } else {
     card.classList.remove("calibration-card-active");
     btn.textContent = "Enter calibration mode";
     btn.className = "btn primary btn-lg";
     status.textContent = "Normal operation — poll and upload follow the values saved on the Settings page.";
     detail.textContent =
-      "This will remember your current intervals, set sampling to every 5 seconds and uploads every 15 seconds, and restart monitoring if it is running. Click again when calibration is complete to restore.";
+      "This will remember your current poll interval, set Modbus sampling to every 5 seconds (uploads keep using your Settings interval), and restart monitoring if it is running. Click again when calibration is complete to restore.";
   }
 }
 
@@ -310,7 +310,7 @@ async function toggleCalibration() {
       showToast("Calibration mode off — normal intervals restored.", "success");
     } else {
       lastSettings = await api("/api/calibration/enable", { method: "POST", body: "{}" });
-      showToast("Calibration mode on — 5 s poll, 15 s upload.", "success");
+      showToast("Calibration mode on — 5 s poll; uploads unchanged.", "success");
     }
     await loadSettings();
   } catch (e) {

@@ -29,7 +29,6 @@ from app.services.runtime import runtime
 from app.services.settings_store import load_hub_settings, merge_hub_settings, save_hub_settings
 
 CALIBRATION_POLL_MS = 5000
-CALIBRATION_SYNC_SEC = 15
 from app.services.sensors_store import load_sensors, save_sensors
 
 logging.basicConfig(level=logging.INFO)
@@ -355,7 +354,8 @@ def calibration_enable(db: Session = Depends(get_db)) -> HubSettings:
     hub.calibration_saved_poll_interval_ms = hub.poll_interval_ms
     hub.calibration_saved_sync_interval_sec = hub.sync_interval_sec
     hub.poll_interval_ms = CALIBRATION_POLL_MS
-    hub.sync_interval_sec = CALIBRATION_SYNC_SEC
+    # Keep sync_interval_sec unchanged so the outbox drains to the console on the same
+    # cadence as normal operation; only Modbus polling is accelerated for calibration.
     hub.calibration_mode = True
     save_hub_settings(db, hub)
     _restart_runtime_if_was_running(was_running)

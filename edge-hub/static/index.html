@@ -98,7 +98,7 @@
               <li><strong>Here:</strong> paste Console URL + API key, choose serial port, save.</li>
               <li><strong>Site:</strong> load sites and pick one (loads reactors).</li>
               <li><strong>Reactors:</strong> open each reactor → add sensors; each add saves immediately.</li>
-              <li><strong>Calibration:</strong> optional fast poll/upload for pH calibration.</li>
+              <li><strong>Calibration:</strong> optional fast Modbus polling for pH calibration (uploads follow Settings).</li>
               <li><strong>Live:</strong> start monitoring.</li>
             </ol>
           </div>
@@ -228,8 +228,8 @@
             <h1 class="panel-title">Calibration mode</h1>
             <p class="panel-intro">
               For <strong>pH calibration</strong>, use faster sampling so you can compare readings against buffer
-              standards. One button switches poll interval to <strong>every 5 seconds</strong> and upload to
-              <strong>every 15 seconds</strong>, then restores your normal Settings values when you turn it off.
+              standards. One button switches Modbus polling to <strong>every 5 seconds</strong> while uploads keep
+              using your <strong>Settings</strong> interval, then restores your saved poll interval when you turn it off.
             </p>
           </header>
           <div class="card" id="calibrationCard">
