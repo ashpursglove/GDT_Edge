@@ -10,10 +10,14 @@ from app.schemas import ReactorDTO, SiteDTO, SensorDTO
 
 logger = logging.getLogger(__name__)
 
-# Longer read timeout for large ingest batches; shorter connect so DNS failures fail fast and retry.
-DEFAULT_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
-POST_READINGS_RETRIES = 4
-POST_READINGS_RETRY_DELAY_SEC = 0.75
+# Tight timeouts so a stuck call fails fast and the runtime sync loop drives the retry cadence.
+# A 60s read timeout × 4 internal retries used to wedge the sync thread for ~4 minutes after a
+# single network blip; the network had long recovered by then but uploads looked dead until restart.
+DEFAULT_TIMEOUT = httpx.Timeout(20.0, connect=10.0, write=20.0, pool=10.0)
+# Single attempt per call: the runtime sync loop already retries every 3s on transient errors with
+# a fresh httpx client + fresh DB session, which is what we actually want.
+POST_READINGS_RETRIES = 1
+POST_READINGS_RETRY_DELAY_SEC = 0.5
 
 
 class RemoteAPIError(Exception):
@@ -73,7 +77,12 @@ def _parse_json_response(r: httpx.Response) -> dict | list:
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=True)
+    # transport retries=0: don't add another silent retry layer underneath us.
+    return httpx.Client(
+        timeout=DEFAULT_TIMEOUT,
+        follow_redirects=True,
+        transport=httpx.HTTPTransport(retries=0),
+    )
 
 
 def fetch_sites(base_url: str, api_key: str) -> list[SiteDTO]:

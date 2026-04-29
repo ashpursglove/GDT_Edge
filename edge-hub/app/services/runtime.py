@@ -22,8 +22,10 @@ from app.schemas import LiveSnapshot
 
 logger = logging.getLogger(__name__)
 
-# Larger batches drain backlogs faster; console accepts batched readings.
-_OUTBOX_BATCH = 150
+# Batch size kept modest so each ingest call comfortably fits inside the Vercel function timeout
+# even on a slow cellular uplink — large batches were a major contributor to ReadTimeouts.
+# The console accepts batched readings; backlogs still drain quickly because of `_DRAIN_PAUSE_SEC`.
+_OUTBOX_BATCH = 60
 # Minimal pause between successful batches while a backlog exists (ignore normal upload interval).
 _DRAIN_PAUSE_SEC = 0.02
 # After a failed POST, retry soon instead of waiting the full user upload interval.
